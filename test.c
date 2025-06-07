@@ -6,6 +6,20 @@
 void dummy_thread() {
     printf("This should not be printed if thread hasn't run.\n");
 }
+void reset_threads_except_main() {
+    while (!ready_queue_is_empty()) {
+        ready_queue_pop();
+    }
+
+    for (int i = 1; i < MAX_THREAD_NUM; i++) {
+        g_thread_table[i].tid = -1;
+        g_thread_table[i].state = THREAD_UNUSED;
+        g_thread_table[i].quantums = 0;
+        g_thread_table[i].sleep_until = 0;
+        g_thread_table[i].entry = NULL;
+    }
+}
+
 void test_init_with_invalid_quantum() {
     printf("Running test_init_with_invalid_quantum...\n");
 
@@ -136,6 +150,49 @@ void test_block_main_thread() {
 
     printf("[✓] test_block_main_thread passed.\n");
 }
+void test_ready_queue_clean_after_terminate() {
+    printf("Running test_ready_queue_clean_after_terminate...\n");
+
+    reset_threads_except_main();
+    int tid1 = uthread_spawn(simple_entry);
+    int tid2 = uthread_spawn(simple_entry);
+    int tid3 = uthread_spawn(simple_entry);
+
+    printf("Spawned threads: %d, %d, %d\n", tid1, tid2, tid3);
+
+    uthread_terminate(tid1);
+    uthread_terminate(tid2);
+    uthread_terminate(tid3);
+
+    if (ready_queue_is_empty()) {
+        printf("[✓] Ready queue is empty after terminating all threads.\n");
+    } else {
+        printf("[✗] Ready queue is NOT empty after terminating all threads!\n");
+    }
+}
+
+void test_thread_terminates_itself() {
+    printf("Running test_thread_terminates_itself...\n");
+
+    uthread_init(100000);
+
+    int tid = uthread_spawn(self_terminate_entry);
+    printf("Spawned self-terminate thread: %d\n", tid);
+
+    // Wait a little to allow the thread to run and terminate itself
+    usleep(200000);
+
+    if (ready_queue_is_empty()) {
+        printf("[✓] Self-terminating thread successfully terminated and ready queue is empty.\n");
+    } else {
+        printf("[✗] Self-terminating thread did not clean properly!\n");
+    }
+}
+
+
+
+
+
 
 
 int main() {
@@ -151,6 +208,9 @@ int main() {
     test_ready_queue_integrity();
     test_block_valid_thread();
     test_block_main_thread();
+    test_ready_queue_clean_after_terminate();
+    test_thread_terminates_itself();
+
 
     return 0;
 }

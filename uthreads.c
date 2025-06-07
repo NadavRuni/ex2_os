@@ -243,6 +243,52 @@ int uthread_terminate(int tid) {
     if (tid<0 || tid >= MAX_THREAD_NUM) {
         return -1;
     }
+    if (tid==0) {
+        for (int i = 0; i < MAX_THREAD_NUM; i++) {
+            if (g_thread_table[i].state != THREAD_UNUSED && g_thread_table[i].state != THREAD_TERMINATED) {
+                ready_queue_remove(i);
+                g_thread_table[i].state = THREAD_TERMINATED;
+                g_thread_table[i].tid = -1;
+                g_thread_table[i].entry = NULL;
+                g_thread_table[i].quantums = 0;
+            }
+
+
+            // Clean main thread
+            g_thread_table[0].state = THREAD_TERMINATED;
+            g_thread_table[0].tid = -1;
+            g_thread_table[0].entry = NULL;
+            g_thread_table[0].quantums = 0;
+
+            // Terminate process
+            exit(0);
+        }
+    }
+    else {
+        // Remove from ready queue:
+        ready_queue_remove(tid);
+
+        // Update state:
+        g_thread_table[tid].state = THREAD_TERMINATED;
+        g_thread_table[tid].tid = -1;
+        g_thread_table[tid].entry = NULL;
+        g_thread_table[tid].quantums = 0;
+
+
+        // If terminating itself → context switch:
+        if (tid == g_current_running_tid) {
+            g_current_running_tid = -1;
+            raise(SIGVTALRM); // Force context switch
+        }
+
+        return 0; // Success
+
+    }
+
+
+}
+
+
     
 
 }

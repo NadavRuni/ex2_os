@@ -5,5 +5,6 @@ void ready_queue_push(int tid);
 int ready_queue_pop();
 int ready_queue_is_empty();
 int ready_queue_size();
+void ready_queue_remove(int tid);
 
 #endif
