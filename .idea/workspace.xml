@@ -18,11 +18,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0d537cd6-d948-4443-b6f6-73c6d16e22e4" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/editor.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test_runner" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/queue.c" beforeDir="false" afterPath="$PROJECT_DIR$/queue.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test.c" beforeDir="false" afterPath="$PROJECT_DIR$/test.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_runner" beforeDir="false" afterPath="$PROJECT_DIR$/test_runner" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/uthreads.c" beforeDir="false" afterPath="$PROJECT_DIR$/uthreads.c" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -145,12 +143,23 @@
       <workItem from="1749118289787" duration="2428000" />
       <workItem from="1749120901746" duration="6462000" />
       <workItem from="1749288543582" duration="1485000" />
-      <workItem from="1749290296145" duration="6132000" />
+      <workItem from="1749290296145" duration="9062000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/uthreads.c</url>
+          <line>341</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

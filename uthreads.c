@@ -301,7 +301,9 @@ int uthread_terminate(int tid) {
             // No need to remove from ready_queue because RUNNING thread is not in the ready queue!
             g_current_running_tid = -1;
             raise(SIGVTALRM); // Force context switch → no return
-        } else {
+            return 0;
+        }
+        else {
             // Normal case: terminate other thread
             ready_queue_remove(tid);
 
@@ -314,3 +316,31 @@ int uthread_terminate(int tid) {
         }
     }
 }
+
+int uthread_get_tid() {
+    return g_current_running_tid;
+}
+int uthread_get_total_quantums() {
+    return g_total_quantums_elapsed;
+}
+int uthread_get_quantums(int tid) {
+    if (tid < 0 || tid >= MAX_THREAD_NUM) {
+        return -1;
+    }
+
+    if (g_thread_table[tid].state == THREAD_UNUSED || g_thread_table[tid].state == THREAD_TERMINATED) {
+        return -1;
+    }
+
+    return g_thread_table[tid].quantums;
+}
+void context_switch(thread_t *current, thread_t *next) {
+    if (sigsetjmp(current->env, 1) == 0) {
+        // Jump to next thread context
+        siglongjmp(next->env, 1);
+    }
+}
+
+
+
+

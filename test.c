@@ -1,13 +1,29 @@
 #include <stdio.h>
 #include "uthreads.h"
 #include "queue.h"
+typedef unsigned long address_t;
+#define JB_PC 7
+
 extern void uthread_reset_threads_except_main(void);
 extern int uthread_get_tid_of_current_internal(void);
+
+static int g_count_tests=0;
+static int g_count_passed_tests=0;
+
 
 void self_terminate_entry() {
     int my_tid = uthread_get_tid_of_current_internal();
     uthread_terminate(my_tid);
 }
+
+void print_summary() {
+    printf("=========== TEST SUMMARY ===========\n");
+    printf("Total tests: %d\n", g_count_tests);
+    printf("Passed tests: %d\n", g_count_passed_tests);
+    printf("Failed tests: %d\n", g_count_tests - g_count_passed_tests);
+    printf("====================================\n");
+}
+
 
 // Dummy function used as thread entry point
 void dummy_thread() {
@@ -24,18 +40,22 @@ void reset_threads_except_main() {
 }
 
 void test_init_with_invalid_quantum() {
+    g_count_tests++;
     printf("Running test_init_with_invalid_quantum...\n");
 
     int result = uthread_init(0); // invalid input
     if (result != -1) {
         printf("[✗] test_init_with_invalid_quantum failed: expected -1, got %d\n", result);
     } else {
+        g_count_passed_tests++;
         printf("[✓] test_init_with_invalid_quantum passed.\n");
     }
 }
 
 void test_main_thread_initialized_correctly() {
     printf("Running test_main_thread_initialized_correctly...\n");
+    g_count_tests++;
+
 
     if (uthread_init(100000) == -1) {
         printf("[✗] test_main_thread_initialized_correctly failed: init failed.\n");
@@ -49,12 +69,16 @@ void test_main_thread_initialized_correctly() {
     }
 
     printf("[✓] test_main_thread_initialized_correctly passed.\n");
+    g_count_passed_tests++;
+
 }
 
 
 // Test 1: Basic spawning and state check
 void test_basic_spawn() {
     printf("Running test_basic_spawn...\n");
+    g_count_tests++;
+
 
     int tid1 = uthread_spawn(dummy_thread);
     int tid2 = uthread_spawn(dummy_thread);
@@ -70,11 +94,14 @@ void test_basic_spawn() {
     }
 
     printf("[✓] test_basic_spawn passed.\n");
+    g_count_passed_tests++;
 }
 
 // Test 2: Check if threads are in the READY queue in correct order
 void test_ready_queue_integrity() {
     printf("Running test_ready_queue_integrity...\n");
+    g_count_tests++;
+
 
     const int num_extra_threads = 5;
     int tids[num_extra_threads];
@@ -108,9 +135,12 @@ void test_ready_queue_integrity() {
     }
 
     printf("[✓] test_ready_queue_integrity passed.\n");
+    g_count_passed_tests++;
 }
 void test_block_valid_thread() {
     printf("Running test_block_valid_thread...\n");
+    g_count_tests++;
+
 
     // ננקה את ה־queue
     while (!ready_queue_is_empty()) {
@@ -140,10 +170,13 @@ void test_block_valid_thread() {
     }
 
     printf("[✓] test_block_valid_thread passed.\n");
+    g_count_passed_tests++;
 }
 
 void test_block_main_thread() {
     printf("Running test_block_main_thread...\n");
+    g_count_tests++;
+
 
     int result = uthread_block(0);  // Try to block main thread
     if (result != -1) {
@@ -152,9 +185,12 @@ void test_block_main_thread() {
     }
 
     printf("[✓] test_block_main_thread passed.\n");
+    g_count_passed_tests++;
 }
 void test_ready_queue_clean_after_terminate() {
     printf("Running test_ready_queue_clean_after_terminate...\n");
+    g_count_tests++;
+
 
     reset_threads_except_main();
     int tid1 = uthread_spawn(simple_entry);
@@ -169,6 +205,7 @@ void test_ready_queue_clean_after_terminate() {
 
     if (ready_queue_is_empty()) {
         printf("[✓] Ready queue is empty after terminating all threads.\n");
+        g_count_passed_tests++;
     } else {
         printf("[✗] Ready queue is NOT empty after terminating all threads!\n");
     }
@@ -176,6 +213,7 @@ void test_ready_queue_clean_after_terminate() {
 
 void test_thread_terminates_itself() {
     printf("Running test_thread_terminates_itself...\n");
+    g_count_tests++;
 
     uthread_init(100000);
 
@@ -189,10 +227,162 @@ void test_thread_terminates_itself() {
 
     if (ready_queue_is_empty()) {
         printf("[✓] Self-terminating thread successfully terminated and ready queue is empty.\n");
+        g_count_passed_tests++;
     } else {
         printf("[✗] Self-terminating thread did not clean properly!\n");
     }
+}void thread_get_tid_entry() {
+    int my_tid = uthread_get_tid();
+    if (my_tid != uthread_get_tid_of_current_internal()) {
+        printf("[✗] test_get_tid failed inside thread: expected %d, got %d\n",
+               uthread_get_tid_of_current_internal(), my_tid);
+    } else {
+        printf("[✓] test_get_tid passed inside thread.\n");
+        g_count_passed_tests++;
+    }
+    // Terminate self
+    int self_tid = uthread_get_tid();
+    uthread_terminate(self_tid);
 }
+
+void test_get_tid() {
+    printf("Running test_get_tid...\n");
+    g_count_tests++;
+
+    uthread_init(100000);
+
+    int main_tid = uthread_get_tid();
+    if (main_tid != 0) {
+        printf("[✗] test_get_tid failed: expected 0, got %d\n", main_tid);
+        return;
+    } else {
+        printf("[✓] test_get_tid passed in main thread.\n");
+        g_count_passed_tests++;
+    }
+
+    // Now test inside another thread:
+    int tid1 = uthread_spawn(thread_get_tid_entry);
+    if (tid1 == -1) {
+        printf("[✗] test_get_tid failed: spawn failed.\n");
+        return;
+    }
+
+    raise(SIGVTALRM);  // Allow thread to run
+}
+void test_get_total_quantums() {
+    printf("Running test_get_total_quantums...\n");
+    g_count_tests++;
+
+    uthread_init(100000);
+    int initial_quantums = uthread_get_total_quantums();
+    if (initial_quantums != 1) {
+        printf("[✗] test_get_total_quantums failed: expected 1, got %d\n", initial_quantums);
+        return;
+    }
+
+    raise(SIGVTALRM);
+    int after_first_tick = uthread_get_total_quantums();
+    if (after_first_tick <= initial_quantums) {
+        printf("[✗] test_get_total_quantums failed: quantums did not increase.\n");
+    } else {
+        printf("[✓] test_get_total_quantums passed.\n");
+        g_count_passed_tests++;
+
+    }
+}
+void test_get_quantums() {
+    printf("Running test_get_quantums...\n");
+    g_count_tests++;
+
+    uthread_init(100000);
+
+    int tid1 = uthread_spawn(dummy_thread);
+    if (tid1 == -1) {
+        printf("[✗] test_get_quantums failed: spawn failed.\n");
+        return;
+    }
+
+    // Initially thread should have 0 quantums
+    int q = uthread_get_quantums(tid1);
+    if (q != 0) {
+        printf("[✗] test_get_quantums failed: expected 0, got %d\n", q);
+        return;
+    }
+
+    // Force context switch
+    raise(SIGVTALRM);
+
+    // Now main thread should have at least 1 quantum
+    int main_q = uthread_get_quantums(0);
+    if (main_q <= 0) {
+        printf("[✗] test_get_quantums failed: main thread quantums invalid.\n");
+    } else {
+        printf("[✓] test_get_quantums passed.\n");
+        g_count_passed_tests++;
+
+    }
+}
+static jmp_buf main_env;
+static int context_switch_test_flag = 0;
+
+void dummy_context_switch_target() {
+    // סימולציה של פעולה בתוך ה־dummy thread
+    context_switch_test_flag = 1;
+    siglongjmp(main_env, 1);  // חזרה ל־main
+}
+
+void test_context_switch() {
+    printf("Running test_context_switch...\n");
+    g_count_tests++;
+
+    static int test_context_switch_done = 0;
+
+    if (sigsetjmp(main_env, 1) == 0) {
+        // First pass
+        thread_t dummy_thread;
+        sigsetjmp(dummy_thread.env, 1);
+        dummy_thread.env->__jmpbuf[JB_PC] = (address_t)dummy_context_switch_target;
+
+        thread_t dummy_main;
+        sigsetjmp(dummy_main.env, 1);
+
+        context_switch(&dummy_main, &dummy_thread);
+    } else {
+        // Returned from dummy_context_switch_target
+        if (context_switch_test_flag == 1) {
+            printf("[✓] test_context_switch passed.\n");
+            g_count_passed_tests++;
+        } else {
+            printf("[✗] test_context_switch failed.\n");
+        }
+
+        // prevent re-entry to context_switch infinite loop!
+        test_context_switch_done = 1;
+    }
+
+    if (test_context_switch_done) {
+        // Disable timer to prevent stray SIGVTALRM
+        struct itimerval stop_timer = {0};
+        setitimer(ITIMER_VIRTUAL, &stop_timer, NULL);
+
+        // Also block SIGVTALRM temporarily to clear any pending signal
+        sigset_t block_mask;
+        sigemptyset(&block_mask);
+        sigaddset(&block_mask, SIGVTALRM);
+        sigprocmask(SIG_BLOCK, &block_mask, NULL);
+
+        // Small sleep to ensure the kernel clears the pending signal
+        usleep(10000);  // 10 ms is more than enough
+
+        // Unblock SIGVTALRM
+        sigprocmask(SIG_UNBLOCK, &block_mask, NULL);
+
+        return;  // Exit the test cleanly
+    }
+}
+
+
+
 
 
 
@@ -215,7 +405,10 @@ int main() {
     test_block_main_thread();
     test_ready_queue_clean_after_terminate();
     test_thread_terminates_itself();
-
-
+    test_get_tid();
+    test_get_total_quantums();
+    test_get_quantums();
+    test_context_switch();
+    print_summary();
     return 0;
 }
