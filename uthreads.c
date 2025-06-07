@@ -34,6 +34,12 @@ static void library_error_print(const char* msg);
 //static void thread_wrapper(void);
 void schedule_next(void);
 void timer_handler(int signum);
+// Declare it here locally so test.c knows it exists:
+extern void uthread_reset_threads_except_main(void);
+int uthread_get_tid_of_current_internal(void) {
+    return g_current_running_tid;
+}
+
 
 
 //=====================================================================//=====================================================================
@@ -41,6 +47,20 @@ static void system_error_exit(const char* msg) {
     fprintf(stderr, "system error: %s\n", msg);
     exit(1);
 }
+void uthread_reset_threads_except_main() {
+    while (!ready_queue_is_empty()) {
+        ready_queue_pop();
+    }
+
+    for (int i = 1; i < MAX_THREAD_NUM; i++) {
+        g_thread_table[i].tid = -1;
+        g_thread_table[i].state = THREAD_UNUSED;
+        g_thread_table[i].quantums = 0;
+        g_thread_table[i].sleep_until = 0;
+        g_thread_table[i].entry = NULL;
+    }
+}
+
 
 static void library_error_print(const char* msg) {
     fprintf(stderr, "thread library error: %s\n", msg);
@@ -56,36 +76,45 @@ static void library_error_print(const char* msg) {
     }
     schedule_next();
   }
+void schedule_next(void) {
+    int prev_tid = g_current_running_tid;
 
-  void schedule_next(void){
-    int prev_tid= g_current_running_tid;
-    if(prev_tid != -1 && g_thread_table[prev_tid].state == THREAD_RUNNING) {
-        g_thread_table[prev_tid].state = THREAD_READY; // Set previous thread to READY state.
-        ready_queue_push(prev_tid); // Push the previous thread to the READY queue.
-    }
-
-    int next_tid = ready_queue_pop(); // Get the next thread from the READY queue.
-    if(next_tid==-1){
-        if(g_thread_table[0].state== THREAD_READY || g_thread_table[0].state== THREAD_RUNNING) {
-            next_tid = 0; // If no other thread is ready, run the main thread.
-        } else {
-            system_error_exit("schedule_next: No runnable threads (critical error in stub).");
+    // Save previous thread if still valid and not TERMINATED
+    if (prev_tid != -1 && g_thread_table[prev_tid].state == THREAD_RUNNING) {
+        if (g_thread_table[prev_tid].state != THREAD_TERMINATED && g_thread_table[prev_tid].state != THREAD_BLOCKED &&  prev_tid != 0)  {
+            g_thread_table[prev_tid].state = THREAD_READY;
+            ready_queue_push(prev_tid);
         }
     }
 
-    g_current_running_tid = next_tid; // Update the currently running thread ID.
-    g_thread_table[next_tid].state = THREAD_RUNNING; // Set the next thread to RUNNING state.
+    // Pick next thread
+    int next_tid = ready_queue_pop();
 
+    // Fallback to main thread if needed
+    if (next_tid == -1) {
+        if (g_thread_table[0].state == THREAD_READY || g_thread_table[0].state == THREAD_RUNNING) {
+            next_tid = 0;
+        } else {
+            system_error_exit("schedule_next: No runnable threads (critical error).");
+        }
+    }
+
+    g_current_running_tid = next_tid;
+    g_thread_table[next_tid].state = THREAD_RUNNING;
+
+    // Reset timer
     struct itimerval timer_reset_val;
-    timer_reset_val.it_value.tv_sec = g_queantum_duration_usecs/1000000;
+    timer_reset_val.it_value.tv_sec = g_queantum_duration_usecs / 1000000;
     timer_reset_val.it_value.tv_usec = g_queantum_duration_usecs % 1000000;
     timer_reset_val.it_interval.tv_sec = g_queantum_duration_usecs / 1000000;
     timer_reset_val.it_interval.tv_usec = g_queantum_duration_usecs % 1000000;
 
-    if(setitimer(ITIMER_VIRTUAL, &timer_reset_val, NULL) == -1) {
+    if (setitimer(ITIMER_VIRTUAL, &timer_reset_val, NULL) == -1) {
         system_error_exit("schedule_next: setitimer failed to reset quantum.");
     }
-  }
+}
+
+
 //=====================================================================//=====================================================================
 address_t translate_address(address_t addr) {
     return addr;
@@ -253,42 +282,35 @@ int uthread_terminate(int tid) {
                 g_thread_table[i].quantums = 0;
             }
 
-
-            // Clean main thread
-            g_thread_table[0].state = THREAD_TERMINATED;
-            g_thread_table[0].tid = -1;
-            g_thread_table[0].entry = NULL;
-            g_thread_table[0].quantums = 0;
-
-            // Terminate process
-            exit(0);
         }
+        // Clean main thread
+        g_thread_table[0].state = THREAD_TERMINATED;
+        g_thread_table[0].tid = -1;
+        g_thread_table[0].entry = NULL;
+        g_thread_table[0].quantums = 0;
+        exit(0);
     }
     else {
-        // Remove from ready queue:
-        ready_queue_remove(tid);
-
-        // Update state:
-        g_thread_table[tid].state = THREAD_TERMINATED;
-        g_thread_table[tid].tid = -1;
-        g_thread_table[tid].entry = NULL;
-        g_thread_table[tid].quantums = 0;
-
-
-        // If terminating itself → context switch:
         if (tid == g_current_running_tid) {
+            // If self-terminating
+            g_thread_table[tid].state = THREAD_TERMINATED;
+            g_thread_table[tid].tid = -1;
+            g_thread_table[tid].entry = NULL;
+            g_thread_table[tid].quantums = 0;
+
+            // No need to remove from ready_queue because RUNNING thread is not in the ready queue!
             g_current_running_tid = -1;
-            raise(SIGVTALRM); // Force context switch
+            raise(SIGVTALRM); // Force context switch → no return
+        } else {
+            // Normal case: terminate other thread
+            ready_queue_remove(tid);
+
+            g_thread_table[tid].state = THREAD_TERMINATED;
+            g_thread_table[tid].tid = -1;
+            g_thread_table[tid].entry = NULL;
+            g_thread_table[tid].quantums = 0;
+
+            return 0; // Success
         }
-
-        return 0; // Success
-
     }
-
-
-}
-
-
-    
-
 }

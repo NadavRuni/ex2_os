@@ -1,23 +1,26 @@
 #include <stdio.h>
 #include "uthreads.h"
 #include "queue.h"
+extern void uthread_reset_threads_except_main(void);
+extern int uthread_get_tid_of_current_internal(void);
+
+void self_terminate_entry() {
+    int my_tid = uthread_get_tid_of_current_internal();
+    uthread_terminate(my_tid);
+}
 
 // Dummy function used as thread entry point
 void dummy_thread() {
     printf("This should not be printed if thread hasn't run.\n");
 }
-void reset_threads_except_main() {
-    while (!ready_queue_is_empty()) {
-        ready_queue_pop();
-    }
+void simple_entry() {
+    while (1) { }  // Infinite loop dummy
+}
 
-    for (int i = 1; i < MAX_THREAD_NUM; i++) {
-        g_thread_table[i].tid = -1;
-        g_thread_table[i].state = THREAD_UNUSED;
-        g_thread_table[i].quantums = 0;
-        g_thread_table[i].sleep_until = 0;
-        g_thread_table[i].entry = NULL;
-    }
+
+
+void reset_threads_except_main() {
+    uthread_reset_threads_except_main();
 }
 
 void test_init_with_invalid_quantum() {
@@ -178,6 +181,8 @@ void test_thread_terminates_itself() {
 
     int tid = uthread_spawn(self_terminate_entry);
     printf("Spawned self-terminate thread: %d\n", tid);
+    raise(SIGVTALRM);
+
 
     // Wait a little to allow the thread to run and terminate itself
     usleep(200000);

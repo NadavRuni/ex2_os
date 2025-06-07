@@ -10,9 +10,11 @@ static int g_ready_queue_size = 0;
 
 void ready_queue_push(int tid) {
     if (g_ready_queue_size >= MAX_THREAD_NUM) {
-        fprintf(stderr, "ready_queue error: overflow\n");
+        fprintf(stderr, "ready_queue error: overflow when pushing %d\n", tid);
         return;
     }
+    printf("[DEBUG] ready_queue_push(%d)\n", tid);  // הוספת הדפסה
+
     g_ready_queue[g_ready_queue_tail] = tid;
     g_ready_queue_tail = (g_ready_queue_tail + 1) % MAX_THREAD_NUM;
     g_ready_queue_size++;
@@ -32,21 +34,26 @@ int ready_queue_size() {
     return g_ready_queue_size;
 }
 void ready_queue_remove(int tid) {
-    int size = ready_queue_size();
-    int temp_queue[MAX_THREAD_NUM];
+    printf("[DEBUG] ready_queue_remove(%d)\n", tid);  // הוספת הדפסה
+
+    int new_queue[MAX_THREAD_NUM];
+    int new_head = 0;
     int count = 0;
 
-    while (size > 0) {
-        int curr_tid = ready_queue_pop();
-        if (curr_tid != tid) {
-            temp_queue[count++] = curr_tid;
+    while (!ready_queue_is_empty()) {
+        int current = ready_queue_pop();
+        if (current != tid) {
+            new_queue[new_head++] = current;
+            count++;
         }
     }
 
+    // Copy back
     for (int i = 0; i < count; i++) {
-        ready_queue_push(temp_queue[i]);
+        ready_queue_push(new_queue[i]);
     }
 }
+
 int ready_queue_is_empty() {
     return g_ready_queue_size == 0;
 }
